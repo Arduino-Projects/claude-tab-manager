@@ -1,0 +1,85 @@
+src/sessions.js
+  s_bedf47439e6a80::t_61a3c8ea59f7d5 1-55
+test/sessions.test.js
+  s_bedf47439e6a80::t_26006bac8d53f0 1-36
+src/tracker.js
+  s_bedf47439e6a80::t_f9eda545b6881a 1-108
+  s_bedf47439e6a80::t_a681351c786ada 109-111
+src/store.js
+  s_bedf47439e6a80::t_79eb0a553f32dc 50-58
+  s_bedf47439e6a80::t_34f87620c6c411 1-49,59-95,97-122
+  s_bedf47439e6a80::t_0096505333c391 96
+  s_bedf47439e6a80::t_c74fea5286d549 123-135
+.vscodeignore
+  s_bedf47439e6a80::t_0f84ab5ceeddd0 1-3
+  s_bedf47439e6a80::t_7c1cffd02d0a46 4-5
+test/store.test.js
+  s_bedf47439e6a80::t_bcc2d772df449f 1-32,47-109
+  s_bedf47439e6a80::t_7c8cef21a8d8ea 33-46
+  s_bedf47439e6a80::t_0341456ad5ac38 110-136
+media/tabs.svg
+  s_bedf47439e6a80::t_227be2e2f4c743 1
+src/status.js
+  s_bedf47439e6a80::t_dbe60d1482809d 1-53
+test/extension.test.js
+  s_bedf47439e6a80::t_51a70671232c44 1-181
+  s_bedf47439e6a80::t_e485e74d5affe2 182-597
+src/hookSetup.js
+  s_bedf47439e6a80::t_906367331ff387 1-115
+src/extension.js
+  s_bedf47439e6a80::t_f329e94953e9f3 1-338
+  s_bedf47439e6a80::t_135202f605c14c 339-676
+.gitignore
+  s_bedf47439e6a80::t_871070a579b2a4 1-2
+  s_bedf47439e6a80::t_5e7e7fbcf6207e 3
+test/support/fake-vscode.js
+  s_bedf47439e6a80::t_8fc10403b1de55 1-312
+  s_bedf47439e6a80::t_3a5e52189745ee 313-363
+test/status.test.js
+  s_bedf47439e6a80::t_95500b36b78806 1-68
+test/hookSetup.test.js
+  s_bedf47439e6a80::t_e4e28246800ef5 1-92
+README.md
+  s_bedf47439e6a80::t_f9597cf056c37d 1-45
+  s_bedf47439e6a80::t_bb55c920309131 46-81
+package.json
+  s_bedf47439e6a80::t_14a2f6fe5164f1 1-95
+  s_bedf47439e6a80::t_1b609ab560a240 96-423
+test/tracker.test.js
+  s_bedf47439e6a80::t_4176aa6ee2f309 1-104
+  s_bedf47439e6a80::t_1f5e3366be9fe2 105-117
+CHANGELOG.md
+  s_bedf47439e6a80::t_53ca4e0aa4782c 1-15
+LICENSE
+  s_bedf47439e6a80::t_a245e5a1c1fc51 1-21
+media/dot-blue.svg
+  s_bedf47439e6a80::t_201ddf47e195bb 1
+media/dot-green.svg
+  s_bedf47439e6a80::t_d711b6584ea426 1
+media/dot-orange.svg
+  s_bedf47439e6a80::t_939dab8b270190 1
+media/dot-purple.svg
+  s_bedf47439e6a80::t_897cadb9ca5455 1
+media/dot-red.svg
+  s_bedf47439e6a80::t_ae5ccdc3184ffe 1
+media/dot-yellow.svg
+  s_bedf47439e6a80::t_d76a22122c6416 1
+scripts/release.sh
+  s_bedf47439e6a80::t_2ea7b39e224b9e 1-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7a90423c04f6b25e882e6d6137ccac55b219f74b",
+  "prompts": {},
+  "sessions": {
+    "s_bedf47439e6a80": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a5e0a755-72ee-49e6-87b1-ce036f0a7304",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Araad Shams <33609571+Arduino-Projects@users.noreply.github.com>"
+    }
+  }
+}
