@@ -1,0 +1,423 @@
+{
+  "name": "claude-tab-manager",
+  "displayName": "Claude Code Tab Manager",
+  "description": "Group, color-code, rename, and reorder Claude Code session tabs, and see which sessions are working or need you.",
+  "version": "0.9.4",
+  "publisher": "AraadShams",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Arduino-Projects/claude-tab-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Arduino-Projects/claude-tab-manager/issues"
+  },
+  "homepage": "https://github.com/Arduino-Projects/claude-tab-manager#readme",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onUri"
+  ],
+  "scripts": {
+    "test": "node --test 'test/*.test.js'",
+    "package": "npx --yes @vscode/vsce package -o claude-tab-manager.vsix",
+    "release": "sh scripts/release.sh"
+  },
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claudeTabs",
+          "title": "Claude Tabs",
+          "icon": "media/tabs.svg"
+        }
+      ]
+    },
+    "views": {
+      "claudeTabs": [
+        {
+          "id": "claudeTabs.tree",
+          "name": "Tabs"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "claudeTabs.tree",
+        "contents": "No Claude Code tabs are open in this window.\n[Open Claude Code](command:claude-vscode.editor.open)\n[New Group](command:claudeTabs.newGroup)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "claudeTabs.newGroup",
+        "title": "New Group…",
+        "category": "Claude Tabs",
+        "icon": "$(add)"
+      },
+      {
+        "command": "claudeTabs.moveToGroup",
+        "title": "Move to Group…",
+        "category": "Claude Tabs",
+        "icon": "$(tag)"
+      },
+      {
+        "command": "claudeTabs.removeFromGroup",
+        "title": "Remove from Group",
+        "category": "Claude Tabs"
+      },
+      {
+        "command": "claudeTabs.focusTab",
+        "title": "Open Tab",
+        "category": "Claude Tabs"
+      },
+      {
+        "command": "claudeTabs.closeTab",
+        "title": "Close Tab",
+        "category": "Claude Tabs",
+        "icon": "$(close)"
+      },
+      {
+        "command": "claudeTabs.renameTab",
+        "title": "Rename Tab…",
+        "category": "Claude Tabs",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "claudeTabs.renameGroup",
+        "title": "Rename Group…",
+        "category": "Claude Tabs"
+      },
+      {
+        "command": "claudeTabs.changeColor",
+        "title": "Change Color…",
+        "category": "Claude Tabs",
+        "icon": "$(symbol-color)"
+      },
+      {
+        "command": "claudeTabs.deleteGroup",
+        "title": "Delete Group",
+        "category": "Claude Tabs",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "claudeTabs.moveGroupUp",
+        "title": "Move Group Up",
+        "category": "Claude Tabs",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "claudeTabs.moveGroupDown",
+        "title": "Move Group Down",
+        "category": "Claude Tabs",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "claudeTabs.closeGroupTabs",
+        "title": "Close All Tabs in Group",
+        "category": "Claude Tabs",
+        "icon": "$(close-all)"
+      },
+      {
+        "command": "claudeTabs.groupDot.red",
+        "title": "In a Red Group: Change Group…",
+        "category": "Claude Tabs",
+        "icon": {
+          "light": "media/dot-red.svg",
+          "dark": "media/dot-red.svg"
+        }
+      },
+      {
+        "command": "claudeTabs.groupDot.orange",
+        "title": "In a Orange Group: Change Group…",
+        "category": "Claude Tabs",
+        "icon": {
+          "light": "media/dot-orange.svg",
+          "dark": "media/dot-orange.svg"
+        }
+      },
+      {
+        "command": "claudeTabs.groupDot.yellow",
+        "title": "In a Yellow Group: Change Group…",
+        "category": "Claude Tabs",
+        "icon": {
+          "light": "media/dot-yellow.svg",
+          "dark": "media/dot-yellow.svg"
+        }
+      },
+      {
+        "command": "claudeTabs.groupDot.green",
+        "title": "In a Green Group: Change Group…",
+        "category": "Claude Tabs",
+        "icon": {
+          "light": "media/dot-green.svg",
+          "dark": "media/dot-green.svg"
+        }
+      },
+      {
+        "command": "claudeTabs.groupDot.blue",
+        "title": "In a Blue Group: Change Group…",
+        "category": "Claude Tabs",
+        "icon": {
+          "light": "media/dot-blue.svg",
+          "dark": "media/dot-blue.svg"
+        }
+      },
+      {
+        "command": "claudeTabs.groupDot.purple",
+        "title": "In a Purple Group: Change Group…",
+        "category": "Claude Tabs",
+        "icon": {
+          "light": "media/dot-purple.svg",
+          "dark": "media/dot-purple.svg"
+        }
+      },
+      {
+        "command": "claudeTabs.setupStatus",
+        "title": "Set Up Session Status (Working / Needs You)",
+        "category": "Claude Tabs"
+      },
+      {
+        "command": "claudeTabs.removeStatus",
+        "title": "Remove Session Status Hooks",
+        "category": "Claude Tabs"
+      },
+      {
+        "command": "claudeTabs.newTabInGroup",
+        "title": "New Claude Tab in This Group",
+        "category": "Claude Tabs",
+        "icon": "$(add)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "claudeTabs.moveToGroup",
+        "key": "ctrl+alt+g",
+        "mac": "cmd+alt+g",
+        "when": "activeWebviewPanelId == 'claudeVSCodePanel'"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "claudeTabs.moveToGroup",
+          "when": "activeWebviewPanelId == 'claudeVSCodePanel'"
+        },
+        {
+          "command": "claudeTabs.removeFromGroup",
+          "when": "activeWebviewPanelId == 'claudeVSCodePanel'"
+        },
+        {
+          "command": "claudeTabs.focusTab",
+          "when": "false"
+        },
+        {
+          "command": "claudeTabs.closeTab",
+          "when": "false"
+        },
+        {
+          "command": "claudeTabs.renameTab",
+          "when": "false"
+        },
+        {
+          "command": "claudeTabs.renameGroup",
+          "when": "false"
+        },
+        {
+          "command": "claudeTabs.changeColor",
+          "when": "false"
+        },
+        {
+          "command": "claudeTabs.deleteGroup",
+          "when": "false"
+        },
+        {
+          "command": "claudeTabs.moveGroupUp",
+          "when": "false"
+        },
+        {
+          "command": "claudeTabs.moveGroupDown",
+          "when": "false"
+        },
+        {
+          "command": "claudeTabs.closeGroupTabs",
+          "when": "false"
+        },
+        {
+          "command": "claudeTabs.groupDot.red",
+          "when": "false"
+        },
+        {
+          "command": "claudeTabs.groupDot.orange",
+          "when": "false"
+        },
+        {
+          "command": "claudeTabs.groupDot.yellow",
+          "when": "false"
+        },
+        {
+          "command": "claudeTabs.groupDot.green",
+          "when": "false"
+        },
+        {
+          "command": "claudeTabs.groupDot.blue",
+          "when": "false"
+        },
+        {
+          "command": "claudeTabs.groupDot.purple",
+          "when": "false"
+        },
+        {
+          "command": "claudeTabs.newTabInGroup",
+          "when": "false"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "claudeTabs.moveToGroup",
+          "when": "activeWebviewPanelId == 'claudeVSCodePanel' && !claudeTabs.activeGroupColor",
+          "group": "navigation"
+        },
+        {
+          "command": "claudeTabs.groupDot.red",
+          "when": "activeWebviewPanelId == 'claudeVSCodePanel' && claudeTabs.activeGroupColor == red",
+          "group": "navigation"
+        },
+        {
+          "command": "claudeTabs.groupDot.orange",
+          "when": "activeWebviewPanelId == 'claudeVSCodePanel' && claudeTabs.activeGroupColor == orange",
+          "group": "navigation"
+        },
+        {
+          "command": "claudeTabs.groupDot.yellow",
+          "when": "activeWebviewPanelId == 'claudeVSCodePanel' && claudeTabs.activeGroupColor == yellow",
+          "group": "navigation"
+        },
+        {
+          "command": "claudeTabs.groupDot.green",
+          "when": "activeWebviewPanelId == 'claudeVSCodePanel' && claudeTabs.activeGroupColor == green",
+          "group": "navigation"
+        },
+        {
+          "command": "claudeTabs.groupDot.blue",
+          "when": "activeWebviewPanelId == 'claudeVSCodePanel' && claudeTabs.activeGroupColor == blue",
+          "group": "navigation"
+        },
+        {
+          "command": "claudeTabs.groupDot.purple",
+          "when": "activeWebviewPanelId == 'claudeVSCodePanel' && claudeTabs.activeGroupColor == purple",
+          "group": "navigation"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "claudeTabs.newGroup",
+          "when": "view == claudeTabs.tree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "claudeTabs.setupStatus",
+          "when": "view == claudeTabs.tree",
+          "group": "status@1"
+        },
+        {
+          "command": "claudeTabs.removeStatus",
+          "when": "view == claudeTabs.tree",
+          "group": "status@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "claudeTabs.newTabInGroup",
+          "when": "view == claudeTabs.tree && viewItem =~ /^(group|ungrouped)/",
+          "group": "inline@0"
+        },
+        {
+          "command": "claudeTabs.changeColor",
+          "when": "view == claudeTabs.tree && viewItem =~ /^group/",
+          "group": "inline@3"
+        },
+        {
+          "command": "claudeTabs.deleteGroup",
+          "when": "view == claudeTabs.tree && viewItem =~ /^group/",
+          "group": "inline@4"
+        },
+        {
+          "command": "claudeTabs.renameGroup",
+          "when": "view == claudeTabs.tree && viewItem =~ /^group/",
+          "group": "1_edit@1"
+        },
+        {
+          "command": "claudeTabs.changeColor",
+          "when": "view == claudeTabs.tree && viewItem =~ /^group/",
+          "group": "1_edit@2"
+        },
+        {
+          "command": "claudeTabs.moveGroupUp",
+          "when": "view == claudeTabs.tree && viewItem =~ /^group/",
+          "group": "2_order@1"
+        },
+        {
+          "command": "claudeTabs.moveGroupDown",
+          "when": "view == claudeTabs.tree && viewItem =~ /^group/",
+          "group": "2_order@2"
+        },
+        {
+          "command": "claudeTabs.closeGroupTabs",
+          "when": "view == claudeTabs.tree && viewItem =~ /^(group\\.open|ungrouped)/",
+          "group": "3_tabs@3"
+        },
+        {
+          "command": "claudeTabs.deleteGroup",
+          "when": "view == claudeTabs.tree && viewItem =~ /^group/",
+          "group": "4_delete@1"
+        },
+        {
+          "command": "claudeTabs.renameTab",
+          "when": "view == claudeTabs.tree && viewItem =~ /^tab/",
+          "group": "inline@1"
+        },
+        {
+          "command": "claudeTabs.closeTab",
+          "when": "view == claudeTabs.tree && viewItem =~ /^tab/",
+          "group": "inline@2"
+        },
+        {
+          "command": "claudeTabs.renameTab",
+          "when": "view == claudeTabs.tree && viewItem =~ /^tab/",
+          "group": "0_rename@1"
+        },
+        {
+          "command": "claudeTabs.moveToGroup",
+          "when": "view == claudeTabs.tree && viewItem =~ /^tab/",
+          "group": "1_group@1"
+        },
+        {
+          "command": "claudeTabs.removeFromGroup",
+          "when": "view == claudeTabs.tree && viewItem == tab.grouped",
+          "group": "1_group@2"
+        },
+        {
+          "command": "claudeTabs.closeTab",
+          "when": "view == claudeTabs.tree && viewItem =~ /^tab/",
+          "group": "2_close@1"
+        }
+      ]
+    }
+  },
+  "keywords": [
+    "claude",
+    "claude code",
+    "tabs",
+    "tab groups",
+    "ai",
+    "agents",
+    "sessions"
+  ]
+}
