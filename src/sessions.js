@@ -76,9 +76,9 @@ async function listTranscripts(dir) {
   return files.sort((a, b) => b.mtime - a.mtime);
 }
 
-// One session id (or undefined) per title, newest transcript first. Each
-// session is used once, so tabs with the same title get different sessions.
-async function findSessionIds(labels, { dir = projectsDir(), maxFiles = 500 } = {}) {
+// One { sessionId, title } (or undefined) per tab title, newest transcript
+// first. Each session is used once, so tabs with the same title get different sessions.
+async function findSessions(labels, { dir = projectsDir(), maxFiles = 500 } = {}) {
   const result = labels.map(() => undefined);
   let remaining = labels.length;
   for (const { file, sessionId } of (await listTranscripts(dir)).slice(0, maxFiles)) {
@@ -88,11 +88,15 @@ async function findSessionIds(labels, { dir = projectsDir(), maxFiles = 500 } = 
     if (!title) continue;
     const index = labels.findIndex((label, i) => result[i] === undefined && labelMatchesTitle(label, title));
     if (index >= 0) {
-      result[index] = sessionId;
+      result[index] = { sessionId, title };
       remaining--;
     }
   }
   return result;
 }
 
-module.exports = { labelMatchesTitle, titleFromTranscript, findSessionIds };
+async function findSessionIds(labels, options) {
+  return (await findSessions(labels, options)).map((found) => found?.sessionId);
+}
+
+module.exports = { labelMatchesTitle, titleFromTranscript, findSessions, findSessionIds };

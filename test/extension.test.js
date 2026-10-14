@@ -673,7 +673,7 @@ test('clicking a closed row reopens its session in the same group and place', as
   await provider.pollStatus();
   await fake.vscode.window.tabGroups.close(b);
   await tick();
-  assert.deepEqual(fake.globalStateData[STATE_KEY].closed.g1, [{ label: 'b', sessionId: 's-b' }]);
+  assert.deepEqual(fake.globalStateData[STATE_KEY].closed.g1, [{ label: 'b', title: 'b', sessionId: 's-b' }]);
   fake.handlers['claude-vscode.editor.open'] = (sessionId) => setTimeout(() => fake.openTab(sessionId === 's-b' ? 'b' : '?'), 5);
 
   const closedRow = children(provider, 'Bugs').find((e) => e.kind === 'closed');
@@ -782,4 +782,46 @@ test('a closed row whose tab is open again after a reload goes away', async () =
   await tick();
   assert.deepEqual(rows(provider, 'Bugs'), [['tab', 'a', '']]);
   assert.deepEqual(fake.globalStateData[STATE_KEY].closed, {});
+});
+
+const label = (provider, name) => provider.getTreeItem(tabNamed(provider, name)).label;
+
+test('a shortened tab title shows the full session title from status tracking', async () => {
+  start({ state: twoGroups({}) });
+  const files = useSessions({ s1: 'Review PR #41500 and leave comments' });
+  fake.openTab('Review PR #41500 and lea…');
+  fake.openTab('short');
+  const provider = activate();
+  hookEvents(['s1', 'Stop', { transcript: files.s1 }]);
+
+  await provider.pollStatus();
+
+  assert.equal(label(provider, 'Review PR #41500 and lea…'), 'Review PR #41500 and leave comments');
+  assert.equal(label(provider, 'short'), 'short');
+});
+
+test('a shortened tab title with no status yet is looked up in the session files', async () => {
+  start({ state: twoGroups({}) });
+  useSessions({ s1: 'Investigate the flaky   checkout\nspec on CI' });
+  fake.openTab('Investigate the flaky ch…');
+  const provider = activate();
+
+  await provider.pollStatus();
+  await tick(20);
+
+  assert.equal(label(provider, 'Investigate the flaky ch…'), 'Investigate the flaky checkout spec on CI');
+});
+
+test('a closed row keeps the full title', async () => {
+  start({ state: twoGroups({ 'Review PR #41500 and lea…': 'g1' }) });
+  const files = useSessions({ s1: 'Review PR #41500 and leave comments' });
+  const tab = fake.openTab('Review PR #41500 and lea…');
+  const provider = activate();
+  hookEvents(['s1', 'Stop', { transcript: files.s1 }]);
+  await provider.pollStatus();
+
+  await fake.vscode.window.tabGroups.close(tab);
+  await tick();
+
+  assert.deepEqual(rows(provider, 'Bugs'), [['closed', 'Review PR #41500 and leave comments', 'closed']]);
 });

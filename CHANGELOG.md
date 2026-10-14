@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.1
+
+- The sidebar shows each session's full title instead of the 24-character title Claude Code puts on the tab, so titles use all the room the sidebar has. Closed rows keep their full title.
+
 ## 0.10.0
 
 - A tab you close in the editor now stays in its group, or under Ungrouped, as a closed row in the same place. Click it to reopen the session.

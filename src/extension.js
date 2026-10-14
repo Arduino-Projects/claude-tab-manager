@@ -3,7 +3,7 @@
 const vscode = require('vscode');
 const { COLORS, UNGROUPED, colorById, GroupStore, buildSections } = require('./store');
 const { displayStatus } = require('./status');
-const { findSessionIds } = require('./sessions');
+const { findSessionIds, findSessions, labelMatchesTitle } = require('./sessions');
 const { SessionTracker } = require('./tracker');
 const hookSetup = require('./hookSetup');
 
@@ -126,6 +126,9 @@ class TabManager {
     // tracked by title: the ones the sidebar X closes, and each tab's session.
     this.discarding = new Set();
     this.sessionByLabel = new Map();
+    // Claude Code cuts tab titles to 24 characters; the sidebar shows the full ones.
+    this.fullTitles = new Map();
+    this.titleLookups = new Set();
     this.log = vscode.window.createOutputChannel('Claude Code Tab Manager', { log: true });
     this.trackOpenTabs();
     this.lastOrder = this.displayOrder();
@@ -183,7 +186,8 @@ class TabManager {
         this.tabSessions.set(tab, ids[i]);
         if (ids[i]) this.sessionByLabel.set(tab.label, ids[i]);
       });
-      const key = tabs.map((tab) => `${this.tabKey(tab)}:${this.statusOf(tab)}`).join('|');
+      this.lookUpShortTitles(tabs);
+      const key = tabs.map((tab) => `${this.tabKey(tab)}:${this.statusOf(tab)}:${this.fullTitle(tab.label, tab)}`).join('|');
       if (key !== this.statusKey) {
         this.statusKey = key;
         this.log.info(
@@ -196,6 +200,29 @@ class TabManager {
     } finally {
       this.polling = false;
     }
+  }
+
+  fullTitle(label, tab) {
+    const id = (tab && this.tabSessions.get(tab)) ?? this.sessionByLabel.get(label);
+    const title = (id && this.tracker.titles.get(id)) ?? this.fullTitles.get(label);
+    return title && labelMatchesTitle(label, title) ? title.replace(/\s+/g, ' ').trim() : label;
+  }
+
+  // Shortened titles that status tracking has not matched are looked up once each.
+  lookUpShortTitles(tabs) {
+    const labels = [...new Set(tabs.map((tab) => tab.label))].filter(
+      (label) => label.endsWith('…') && !this.titleLookups.has(label) && this.fullTitle(label) === label,
+    );
+    if (!labels.length) return;
+    labels.forEach((label) => this.titleLookups.add(label));
+    findSessions(labels).then((found) => {
+      found.forEach((f, i) => {
+        if (!f) return;
+        this.fullTitles.set(labels[i], f.title);
+        if (!this.sessionByLabel.has(labels[i])) this.sessionByLabel.set(labels[i], f.sessionId);
+      });
+      if (found.some(Boolean)) this.refresh();
+    }, (error) => this.log.error(`title lookup failed: ${error}`));
   }
 
   statusOf(tab) {
@@ -306,7 +333,11 @@ class TabManager {
         const groupId = this.groupIdOf(store, tab);
         return {
           groupId: store.getGroup(groupId) ? groupId : UNGROUPED,
-          entry: { label: tab.label, sessionId: this.tabSessions.get(tab) ?? this.sessionByLabel.get(tab.label) },
+          entry: {
+            label: tab.label,
+            title: this.fullTitle(tab.label, tab),
+            sessionId: this.tabSessions.get(tab) ?? this.sessionByLabel.get(tab.label),
+          },
         };
       });
     const reopened = event.opened.filter(isClaudeTab).map((tab) => tab.label);
@@ -463,11 +494,12 @@ class TabManager {
 
   closedItem(element) {
     const { entry, group } = element;
-    const item = new vscode.TreeItem(entry.label, vscode.TreeItemCollapsibleState.None);
+    const title = entry.title ?? entry.label;
+    const item = new vscode.TreeItem(title, vscode.TreeItemCollapsibleState.None);
     item.id = element.key;
     item.description = 'closed';
     item.iconPath = new vscode.ThemeIcon('circle-outline', group ? themeColor(group.color) : undefined);
-    item.tooltip = [entry.label, group && `Group: ${group.name}`, 'Closed. Click to reopen it.'].filter(Boolean).join('\n');
+    item.tooltip = [title, group && `Group: ${group.name}`, 'Closed. Click to reopen it.'].filter(Boolean).join('\n');
     item.contextValue = 'closed';
     item.command = { command: 'claudeTabs.reopenTab', title: 'Reopen Tab', arguments: [element] };
     return item;
@@ -475,11 +507,12 @@ class TabManager {
 
   tabItem(element) {
     const { tab, group } = element;
-    const item = new vscode.TreeItem(tab.label, vscode.TreeItemCollapsibleState.None);
+    const title = this.fullTitle(tab.label, tab);
+    const item = new vscode.TreeItem(title, vscode.TreeItemCollapsibleState.None);
     item.id = this.tabKey(tab);
     const status = this.statusOf(tab);
     item.iconPath = new vscode.ThemeIcon(STATUS_ICONS[status], group ? themeColor(group.color) : undefined);
-    item.tooltip = [tab.label, group && `Group: ${group.name}`, STATUS_TEXT[status]].filter(Boolean).join('\n');
+    item.tooltip = [title, group && `Group: ${group.name}`, STATUS_TEXT[status]].filter(Boolean).join('\n');
     item.contextValue = group ? 'tab.grouped' : 'tab';
     item.command = { command: 'claudeTabs.focusTab', title: 'Open Tab', arguments: [element] };
     return item;

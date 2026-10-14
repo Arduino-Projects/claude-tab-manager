@@ -2,7 +2,7 @@
   "name": "claude-tab-manager",
   "displayName": "Claude Code Tab Manager",
   "description": "Group, color-code, rename, and reorder Claude Code session tabs, and see which sessions are working or need you.",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "publisher": "AraadShams",
   "license": "MIT",
   "icon": "media/icon.png",

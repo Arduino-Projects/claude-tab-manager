@@ -26,6 +26,7 @@ Keep many Claude Code tabs under control in VS Code and Cursor. Put tabs in colo
 - **Closing tabs:** a tab you close in the editor stays in its group (or under **Ungrouped**) as a *closed* row, in the same place. Click it to reopen the session. The sidebar's **X** closes the tab and removes it from the list. On a closed row, the X just removes the row. New tabs that never got a title are not kept. Deleting a group moves its closed rows to **Ungrouped**.
 - **Remove a tab from its group:** right-click it and pick **Remove from Group**, or drag it to **Ungrouped**.
 - **Group actions** (hover or right-click a group): change color, rename, reorder, close all tabs, delete.
+- Titles: Claude Code cuts tab titles to 24 characters. The sidebar shows the full session title, so it uses all the width it has.
 - Click a tab to switch to it. The sidebar selects the active Claude tab, like the Explorer does for the active file, without taking focus from the editor. The status bar shows the group of the active Claude tab.
 - **Hide the editor tab bar** (optional): set `"workbench.editor.showTabs": "none"` in your settings, or `"single"` to show only the active tab's title. The sidebar then works as your tab list.
 

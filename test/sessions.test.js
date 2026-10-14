@@ -86,3 +86,12 @@ test('findSessionIds finds a session titled only by its prompt', async () => {
   const dir = makeProjects([['-repo', 's-hi', [{ type: 'last-prompt', lastPrompt: 'hi!' }]]]);
   assert.deepEqual(await findSessionIds(['hi!'], { dir }), ['s-hi']);
 });
+
+test('findSessions returns each session id with its full title', async () => {
+  const { findSessions } = require('../src/sessions');
+  const dir = makeProjects([['-repo', 's-long', [{ type: 'ai-title', aiTitle: 'Review PR #41500 and leave comments' }]]]);
+  assert.deepEqual(await findSessions(['Review PR #41500 and lea…', 'Nope'], { dir }), [
+    { sessionId: 's-long', title: 'Review PR #41500 and leave comments' },
+    undefined,
+  ]);
+});
