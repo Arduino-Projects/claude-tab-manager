@@ -1,0 +1,23 @@
+src/extension.js
+  s_bedf47439e6a80::t_979bf29041f381 50,125-128,182-185,304,309,314-321,602,644-646,649
+test/extension.test.js
+  s_bedf47439e6a80::t_d9a256390a2175 676,717-718
+test/support/fake-vscode.js
+  s_bedf47439e6a80::t_ae9088bc29811f 122-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "57edaadbe9d6cb094b36b046961ac6ac0b7302e7",
+  "prompts": {},
+  "sessions": {
+    "s_bedf47439e6a80": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a5e0a755-72ee-49e6-87b1-ce036f0a7304",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Araad Shams <33609571+Arduino-Projects@users.noreply.github.com>"
+    }
+  }
+}
