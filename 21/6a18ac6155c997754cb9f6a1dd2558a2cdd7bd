@@ -1,0 +1,36 @@
+src/sessions.js
+  s_bedf47439e6a80::t_61a3c8ea59f7d5 6-13,63-90
+  s_bedf47439e6a80::t_cb979b7bc6a1bc 91-96
+CHANGELOG.md
+  s_bedf47439e6a80::t_690559fb4416c9 3-8
+README.md
+  s_bedf47439e6a80::t_8d471e76f6e631 26
+package.json
+  s_bedf47439e6a80::t_f0d9c98ff2da7a 5,196-200,284-287,397,412,417
+src/extension.js
+  s_bedf47439e6a80::t_8aab776cc784d4 6,45-47,126-135,152,286-287,294-300,303-312,318-327,378-384,410,414,420,443-454,492-493,496-498,501,504,508,566,571-594,614,616,618-620,658,726,758
+src/store.js
+  s_bedf47439e6a80::t_8e74a9d403f5d0 30-31,37,110-132,138-140,145-146,148,155-157,160-166
+test/extension.test.js
+  s_bedf47439e6a80::t_a11215dd4add72 598-743
+test/sessions.test.js
+  s_bedf47439e6a80::t_a9bd24647813e6 37-69
+test/store.test.js
+  s_bedf47439e6a80::t_9ca966e816d587 91,138-163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "216a18ac6155c997754cb9f6a1dd2558a2cdd7bd",
+  "prompts": {},
+  "sessions": {
+    "s_bedf47439e6a80": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a5e0a755-72ee-49e6-87b1-ce036f0a7304",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Araad Shams <33609571+Arduino-Projects@users.noreply.github.com>"
+    }
+  }
+}
