@@ -11,7 +11,7 @@ function projectsDir() {
   return path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'projects');
 }
 
-const TITLE_MARKERS = ['"custom-title"', '"ai-title"'];
+const TITLE_MARKERS = ['"custom-title"', '"ai-title"', '"last-prompt"', '"summary"'];
 
 const normalize = (text) => text.replace(/\s+/g, ' ').trim();
 
@@ -42,11 +42,11 @@ function* linesContaining(buffer, markers) {
   }
 }
 
-// The last custom title wins; otherwise the last AI title.
+// Same order as Claude Code's own title: the last custom title, then the last
+// AI title, then the last prompt, then a summary.
 function titleFromTranscript(buffer) {
   const lines = [...linesContaining(buffer, TITLE_MARKERS)].sort((a, b) => a[0] - b[0]);
-  let custom;
-  let ai;
+  const last = {};
   for (const [, line] of lines) {
     let record;
     try {
@@ -54,10 +54,12 @@ function titleFromTranscript(buffer) {
     } catch {
       continue;
     }
-    if (record.type === 'custom-title' && record.customTitle) custom = record.customTitle;
-    else if (record.type === 'ai-title' && record.aiTitle) ai = record.aiTitle;
+    if (record.type === 'custom-title' && record.customTitle) last.custom = record.customTitle;
+    else if (record.type === 'ai-title' && record.aiTitle) last.ai = record.aiTitle;
+    else if (record.type === 'last-prompt' && record.lastPrompt) last.prompt = record.lastPrompt;
+    else if (record.type === 'summary' && record.summary) last.summary = record.summary;
   }
-  return custom ?? ai;
+  return last.custom ?? last.ai ?? last.prompt ?? last.summary;
 }
 
 async function listTranscripts(dir) {

@@ -30,6 +30,20 @@ test('titleFromTranscript prefers the last custom title over AI titles', () => {
   assert.equal(titleFromTranscript(buffer), 'Mine, renamed');
 });
 
+test('titleFromTranscript uses the last prompt when there is no title, like Claude Code', () => {
+  const buffer = transcript(
+    { type: 'user', message: { content: 'hi!' } },
+    { type: 'last-prompt', lastPrompt: 'hi' },
+    { type: 'last-prompt', lastPrompt: 'hi!' },
+  );
+  assert.equal(titleFromTranscript(buffer), 'hi!');
+  assert.equal(titleFromTranscript(transcript({ type: 'summary', summary: 'Short chat', leafUuid: 'x' })), 'Short chat');
+  assert.equal(
+    titleFromTranscript(transcript({ type: 'last-prompt', lastPrompt: 'hi!' }, { type: 'ai-title', aiTitle: 'Greeting' })),
+    'Greeting',
+  );
+});
+
 test('titleFromTranscript falls back to the last AI title', () => {
   assert.equal(titleFromTranscript(transcript({ type: 'ai-title', aiTitle: 'A' }, { type: 'ai-title', aiTitle: 'B' })), 'B');
   assert.equal(titleFromTranscript(transcript({ type: 'user' })), undefined);
@@ -66,4 +80,9 @@ test('findSessionIds maps tab titles to session ids, newest transcript first', a
 
 test('findSessionIds returns no matches when the projects folder is missing', async () => {
   assert.deepEqual(await findSessionIds(['x'], { dir: path.join(os.tmpdir(), 'does-not-exist-claude-tabs') }), [undefined]);
+});
+
+test('findSessionIds finds a session titled only by its prompt', async () => {
+  const dir = makeProjects([['-repo', 's-hi', [{ type: 'last-prompt', lastPrompt: 'hi!' }]]]);
+  assert.deepEqual(await findSessionIds(['hi!'], { dir }), ['s-hi']);
 });

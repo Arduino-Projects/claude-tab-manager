@@ -5,6 +5,7 @@
 - A tab you close in the editor now stays in its group, or under Ungrouped, as a closed row in the same place. Click it to reopen the session.
 - The sidebar's X closes a tab and removes it from the list.
 - Deleting a group moves its closed rows to Ungrouped.
+- Fixed: sessions that never got an AI title (short chats like "hi!") could not be reopened or show a status. Titles now follow Claude Code's order: custom title, AI title, last prompt, summary.
 - A session you reopen another way (Claude Code's sessions list, or moving a tab to another split) goes back to its group.
 
 ## 0.9.4
