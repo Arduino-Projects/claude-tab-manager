@@ -612,17 +612,56 @@ test('closing a grouped tab in the editor keeps it in its group as a closed row,
   assert.equal(provider.getTreeItem(sectionNamed(provider, 'Bugs')).description, '3');
 });
 
-test('ungrouped tabs and untitled new tabs are not kept when closed', async () => {
-  start({ state: twoGroups({ 'Claude Code': 'g1' }) });
+test('closing an ungrouped tab keeps it under Ungrouped as a closed row', async () => {
+  start({ state: twoGroups({}) });
+  fake.openTab('keep');
   const loose = fake.openTab('loose');
+  const provider = activate();
+
+  await fake.vscode.window.tabGroups.close(loose);
+  await tick();
+
+  assert.deepEqual(rows(provider, 'Ungrouped'), [['tab', 'keep', ''], ['closed', 'loose', 'closed']]);
+});
+
+test('an ungrouped closed row shows even when no ungrouped tab is open, and reopens there', async () => {
+  start({ state: twoGroups({}) });
+  useSessions({ 's-loose': 'loose' });
+  const loose = fake.openTab('loose');
+  const provider = activate();
+  await fake.vscode.window.tabGroups.close(loose);
+  await tick();
+  assert.deepEqual(rows(provider, 'Ungrouped'), [['closed', 'loose', 'closed']]);
+  fake.handlers['claude-vscode.editor.open'] = () => setTimeout(() => fake.openTab('loose'), 5);
+
+  await fake.vscode.commands.executeCommand('claudeTabs.reopenTab', children(provider, 'Ungrouped')[0]);
+
+  assert.deepEqual(rows(provider, 'Ungrouped'), [['tab', 'loose', '']]);
+});
+
+test('untitled new tabs are not kept when closed', async () => {
+  start({ state: twoGroups({ 'Claude Code': 'g1' }) });
+  fake.openTab('keep');
   const untitled = fake.openTab('Claude Code');
   const provider = activate();
 
-  await fake.vscode.window.tabGroups.close([loose, untitled]);
+  await fake.vscode.window.tabGroups.close(untitled);
   await tick();
 
   assert.deepEqual(rows(provider, 'Bugs'), []);
-  assert.equal(sectionNamed(provider, 'Ungrouped'), undefined);
+  assert.deepEqual(rows(provider, 'Ungrouped'), [['tab', 'keep', '']]);
+});
+
+test('the sidebar X on an ungrouped tab closes it without keeping a row', async () => {
+  start({ state: twoGroups({}) });
+  fake.openTab('keep');
+  fake.openTab('loose');
+  const provider = activate();
+
+  await fake.vscode.commands.executeCommand('claudeTabs.closeTab', tabNamed(provider, 'loose'));
+  await tick();
+
+  assert.deepEqual(rows(provider, 'Ungrouped'), [['tab', 'keep', '']]);
 });
 
 test('clicking a closed row reopens its session in the same group and place', async () => {

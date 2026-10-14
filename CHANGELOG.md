@@ -2,8 +2,9 @@
 
 ## 0.10.0
 
-- A grouped tab you close in the editor now stays in its group as a closed row, in the same place. Click it to reopen the session.
-- The sidebar's X closes a tab and takes it out of its group.
+- A tab you close in the editor now stays in its group, or under Ungrouped, as a closed row in the same place. Click it to reopen the session.
+- The sidebar's X closes a tab and removes it from the list.
+- Deleting a group moves its closed rows to Ungrouped.
 - A session you reopen another way (Claude Code's sessions list, or moving a tab to another split) goes back to its group.
 
 ## 0.9.4

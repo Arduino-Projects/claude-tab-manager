@@ -136,7 +136,7 @@ test('the saved order round-trips through JSON', () => {
   assert.deepEqual(newStore(JSON.parse(JSON.stringify(store))).order, ['b', 'a']);
 });
 
-test('closed tabs are kept per group, one per title, and dropped with their group', () => {
+test('closed tabs are kept per group, one per title, and move to Ungrouped with their group', () => {
   const store = newStore();
   const a = store.createGroup('A');
   store.keepClosed(a.id, { label: 'Fix login', sessionId: 's1' });
@@ -147,7 +147,7 @@ test('closed tabs are kept per group, one per title, and dropped with their grou
   assert.deepEqual(store.closedIn(a.id), []);
   store.keepClosed(a.id, { label: 'Other' });
   store.deleteGroup(a.id);
-  assert.equal(store.findClosed('Other'), undefined);
+  assert.equal(store.findClosed('Other').groupId, UNGROUPED);
 });
 
 test('buildSections lists open and closed tabs together in the saved order', () => {
@@ -160,4 +160,15 @@ test('buildSections lists open and closed tabs together in the saved order', () 
   assert.deepEqual(section.items.map((i) => [i.kind, i.label]), [['tab', 'three'], ['closed', 'two'], ['tab', 'one']]);
   assert.deepEqual(section.tabs.map((t) => t.label), ['three', 'one']);
   assert.deepEqual(section.closed.map((c) => c.label), ['two']);
+});
+
+test('ungrouped closed tabs are kept, and deleting a group moves its closed tabs there', () => {
+  const store = newStore();
+  const a = store.createGroup('A');
+  store.keepClosed(UNGROUPED, { label: 'loose' });
+  store.keepClosed(a.id, { label: 'grouped', sessionId: 's1' });
+  store.deleteGroup(a.id);
+  assert.deepEqual(store.closedIn(UNGROUPED).map((e) => e.label), ['loose', 'grouped']);
+  const sections = buildSections(store, [], () => undefined);
+  assert.deepEqual(sections.map((s) => [s.group?.name ?? null, s.items.map((i) => i.label)]), [[null, ['loose', 'grouped']]]);
 });

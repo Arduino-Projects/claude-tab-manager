@@ -27,7 +27,7 @@ class GroupStore {
     this.assignments = { ...(raw?.assignments || {}) };
     // Sidebar order of tabs, by label. Tabs not listed follow in editor order.
     this.order = Array.isArray(raw?.order) ? [...raw.order] : [];
-    // Tabs closed in the editor that stay in their group: { groupId: [{ label, sessionId }] }.
+    // Tabs closed in the editor that stay listed: { groupId or UNGROUPED: [{ label, sessionId }] }.
     this.closed = Object.fromEntries(Object.entries(raw?.closed || {}).map(([id, list]) => [id, [...list]]));
     this.idFactory = idFactory;
     this.prune();
@@ -70,7 +70,9 @@ class GroupStore {
     if (group) group.color = colorById(color).id;
   }
 
+  // Its open tabs become ungrouped, and so do its closed tabs.
   deleteGroup(id) {
+    this.closedIn(id).forEach((entry) => this.keepClosed(UNGROUPED, entry));
     this.groups = this.groups.filter((g) => g.id !== id);
     this.prune();
   }
@@ -112,7 +114,7 @@ class GroupStore {
   }
 
   keepClosed(groupId, entry) {
-    if (!this.getGroup(groupId)) return;
+    if (groupId !== UNGROUPED && !this.getGroup(groupId)) return;
     this.closed[groupId] = [...this.closedIn(groupId).filter((e) => e.label !== entry.label), { ...entry }];
   }
 
@@ -136,7 +138,7 @@ class GroupStore {
       if (!ids.has(id)) delete this.assignments[label];
     }
     for (const id of Object.keys(this.closed)) {
-      if (!ids.has(id) || !this.closed[id].length) delete this.closed[id];
+      if ((id !== UNGROUPED && !ids.has(id)) || !this.closed[id].length) delete this.closed[id];
     }
   }
 }
@@ -152,7 +154,8 @@ function buildSections(store, tabs, groupIdOf) {
     const section = byId.get(groupIdOf(tab));
     (section ? section.tabs : ungrouped).push(tab);
   }
-  if (ungrouped.length) sections.push({ group: null, tabs: ungrouped, closed: [] });
+  const ungroupedClosed = store.closedIn(UNGROUPED);
+  if (ungrouped.length || ungroupedClosed.length) sections.push({ group: null, tabs: ungrouped, closed: ungroupedClosed });
   const rank = (label) => {
     const index = store.order.indexOf(label);
     return index < 0 ? Infinity : index;

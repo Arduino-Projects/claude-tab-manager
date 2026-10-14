@@ -121,6 +121,8 @@ class TabManager {
     this.tracker = new SessionTracker(hookSetup.paths().events);
     this.tabSessions = new WeakMap();
     this.decorationEmitter = new vscode.EventEmitter();
+    // Tabs closed with the sidebar X, which are not kept as closed rows.
+    this.discarding = new WeakSet();
     this.log = vscode.window.createOutputChannel('Claude Code Tab Manager', { log: true });
     this.trackOpenTabs();
     this.lastOrder = this.displayOrder();
@@ -283,8 +285,8 @@ class TabManager {
   }
 
   // Claude Code retitles a tab after the first prompt; keep its group.
-  // A grouped tab closed in the editor stays in its group as a closed row. When
-  // a tab with that title opens again, the row goes and the tab takes its place.
+  // A tab closed in the editor stays in its group (or under Ungrouped) as a closed
+  // row. When a tab with that title opens again, the row goes and the tab takes its place.
   async onTabsChanged(event) {
     const renames = [];
     for (const tab of event.changed) {
@@ -293,9 +295,14 @@ class TabManager {
     }
     const store = this.load();
     const kept = event.closed
-      .filter((tab) => isClaudeTab(tab) && tab.label !== UNTITLED)
-      .map((tab) => ({ groupId: this.groupIdOf(store, tab), entry: { label: tab.label, sessionId: this.tabSessions.get(tab) } }))
-      .filter(({ groupId }) => store.getGroup(groupId));
+      .filter((tab) => isClaudeTab(tab) && tab.label !== UNTITLED && !this.discarding.has(tab))
+      .map((tab) => {
+        const groupId = this.groupIdOf(store, tab);
+        return {
+          groupId: store.getGroup(groupId) ? groupId : UNGROUPED,
+          entry: { label: tab.label, sessionId: this.tabSessions.get(tab) },
+        };
+      });
     const reopened = event.opened.filter(isClaudeTab).map((tab) => tab.label);
     const orderBefore = this.lastOrder;
     this.trackOpenTabs();
@@ -380,7 +387,7 @@ class TabManager {
       parent.children = items.map((item) =>
         item.kind === 'tab'
           ? element(this.tabKey(item.tab), { kind: 'tab', tab: item.tab, group, parent })
-          : element(`closed:${group.id}:${item.label}`, { kind: 'closed', entry: item.entry, group, parent }),
+          : element(`closed:${group ? group.id : 'ungrouped'}:${item.label}`, { kind: 'closed', entry: item.entry, group, parent }),
       );
       return parent;
     })];
@@ -445,8 +452,8 @@ class TabManager {
     const item = new vscode.TreeItem(entry.label, vscode.TreeItemCollapsibleState.None);
     item.id = element.key;
     item.description = 'closed';
-    item.iconPath = new vscode.ThemeIcon('circle-outline', themeColor(group.color));
-    item.tooltip = `${entry.label}\nGroup: ${group.name}\nClosed. Click to reopen it.`;
+    item.iconPath = new vscode.ThemeIcon('circle-outline', group ? themeColor(group.color) : undefined);
+    item.tooltip = [entry.label, group && `Group: ${group.name}`, 'Closed. Click to reopen it.'].filter(Boolean).join('\n');
     item.contextValue = 'closed';
     item.command = { command: 'claudeTabs.reopenTab', title: 'Reopen Tab', arguments: [element] };
     return item;
@@ -570,12 +577,15 @@ class TabManager {
 
   async forgetClosed(element, selection) {
     const rows = this.targetElements(element, selection).filter((e) => e.kind === 'closed');
-    if (rows.length) await this.mutate((store) => rows.forEach((e) => store.removeClosed(e.group.id, e.entry.label)));
+    if (rows.length) {
+      await this.mutate((store) => rows.forEach((e) => store.removeClosed(e.group?.id ?? UNGROUPED, e.entry.label)));
+    }
   }
 
   async reopenTab(element) {
     const { entry, group } = element ?? {};
-    if (!entry || !group) return;
+    if (!entry) return;
+    const groupId = group?.id ?? UNGROUPED;
     const sessionId = entry.sessionId ?? (await findSessionIds([entry.label]))[0];
     if (!sessionId) {
       return vscode.window.showWarningMessage(`Claude Tabs could not find the Claude session for "${entry.label}".`);
@@ -584,11 +594,11 @@ class TabManager {
     await vscode.commands.executeCommand('claude-vscode.editor.open', sessionId);
     const tab = await newTab;
     if (!tab) return vscode.window.showWarningMessage(`Claude Tabs: "${entry.label}" did not reopen.`);
-    this.liveGroup.set(tab, group.id);
+    this.liveGroup.set(tab, groupId);
     await this.mutate((store) => {
-      store.removeClosed(group.id, entry.label);
+      store.removeClosed(groupId, entry.label);
       store.renameLabel(entry.label, tab.label);
-      store.assign(tab.label, group.id);
+      store.assign(tab.label, groupId);
     });
   }
 
@@ -611,11 +621,12 @@ class TabManager {
     await vscode.commands.executeCommand('claude-vscode.renameSessionTab');
   }
 
-  // The sidebar X takes a tab out of its group, so it does not stay as a closed row.
+  // The sidebar X takes a tab out of its group and does not keep it as a closed row.
   async closeTabs(element, selection) {
     await this.forgetClosed(element, selection);
     const tabs = this.targetTabs(element, selection);
     if (!tabs.length) return;
+    for (const tab of tabs) this.discarding.add(tab);
     await this.assignTabs(tabs, UNGROUPED);
     await vscode.window.tabGroups.close(tabs);
   }
