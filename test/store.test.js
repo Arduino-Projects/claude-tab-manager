@@ -88,6 +88,7 @@ test('round-trips through JSON and prunes dangling assignments', () => {
     groups: [{ id: 'g1', name: 'A', color: 'blue' }],
     assignments: { x: 'g1' },
     order: [],
+    closed: {},
   });
 });
 
@@ -133,4 +134,30 @@ test('the saved order round-trips through JSON', () => {
   const store = newStore();
   store.setOrder(['b', 'a']);
   assert.deepEqual(newStore(JSON.parse(JSON.stringify(store))).order, ['b', 'a']);
+});
+
+test('closed tabs are kept per group, one per title, and dropped with their group', () => {
+  const store = newStore();
+  const a = store.createGroup('A');
+  store.keepClosed(a.id, { label: 'Fix login', sessionId: 's1' });
+  store.keepClosed(a.id, { label: 'Fix login', sessionId: 's2' });
+  assert.deepEqual(store.closedIn(a.id), [{ label: 'Fix login', sessionId: 's2' }]);
+  assert.deepEqual(store.findClosed('Fix login'), { groupId: a.id, entry: { label: 'Fix login', sessionId: 's2' } });
+  store.removeClosed(a.id, 'Fix login');
+  assert.deepEqual(store.closedIn(a.id), []);
+  store.keepClosed(a.id, { label: 'Other' });
+  store.deleteGroup(a.id);
+  assert.equal(store.findClosed('Other'), undefined);
+});
+
+test('buildSections lists open and closed tabs together in the saved order', () => {
+  const store = newStore();
+  const a = store.createGroup('A');
+  ['one', 'two', 'three'].forEach((label) => store.assign(label, a.id));
+  store.keepClosed(a.id, { label: 'two', sessionId: 's2' });
+  store.setOrder(['three', 'two', 'one']);
+  const [section] = buildSections(store, [{ label: 'one' }, { label: 'three' }], (t) => store.groupIdFor(t.label));
+  assert.deepEqual(section.items.map((i) => [i.kind, i.label]), [['tab', 'three'], ['closed', 'two'], ['tab', 'one']]);
+  assert.deepEqual(section.tabs.map((t) => t.label), ['three', 'one']);
+  assert.deepEqual(section.closed.map((c) => c.label), ['two']);
 });

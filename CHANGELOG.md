@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.0
+
+- A grouped tab you close in the editor now stays in its group as a closed row, in the same place. Click it to reopen the session.
+- The sidebar's X closes a tab and takes it out of its group.
+- A session you reopen another way (Claude Code's sessions list, or moving a tab to another split) goes back to its group.
+
 ## 0.9.4
 
 - Fixed: a finished session stayed marked "needs you" after you opened its tab in Cursor. Cursor reports the window as unfocused while you type in a Claude chat, so the extension no longer checks window focus. The active tab counts as seen.

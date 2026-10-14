@@ -34,3 +34,36 @@ test('titleFromTranscript falls back to the last AI title', () => {
   assert.equal(titleFromTranscript(transcript({ type: 'ai-title', aiTitle: 'A' }, { type: 'ai-title', aiTitle: 'B' })), 'B');
   assert.equal(titleFromTranscript(transcript({ type: 'user' })), undefined);
 });
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { findSessionIds } = require('../src/sessions');
+
+function makeProjects(sessions) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-tabs-'));
+  let mtime = Date.now() / 1000 - 1000;
+  for (const [project, sessionId, records] of sessions) {
+    fs.mkdirSync(path.join(dir, project), { recursive: true });
+    const file = path.join(dir, project, `${sessionId}.jsonl`);
+    fs.writeFileSync(file, transcript(...records));
+    fs.utimesSync(file, mtime, mtime);
+    mtime += 10;
+  }
+  return dir;
+}
+
+test('findSessionIds maps tab titles to session ids, newest transcript first', async () => {
+  const dir = makeProjects([
+    ['-Users-me-repo', 'old-dup', [{ type: 'ai-title', aiTitle: 'Same title' }]],
+    ['-Users-me-other', 's-login', [{ type: 'ai-title', aiTitle: 'Fix login' }]],
+    ['-Users-me-repo', 'new-dup', [{ type: 'ai-title', aiTitle: 'Same title' }]],
+    ['-Users-me-repo', 's-long', [{ type: 'custom-title', customTitle: 'Review PR #41500 and leave comments' }]],
+  ]);
+  const ids = await findSessionIds(['Fix login', 'Same title', 'Same title', 'Review PR #41500 and lea…', 'Nope'], { dir });
+  assert.deepEqual(ids, ['s-login', 'new-dup', 'old-dup', 's-long', undefined]);
+});
+
+test('findSessionIds returns no matches when the projects folder is missing', async () => {
+  assert.deepEqual(await findSessionIds(['x'], { dir: path.join(os.tmpdir(), 'does-not-exist-claude-tabs') }), [undefined]);
+});

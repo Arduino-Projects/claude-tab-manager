@@ -3,6 +3,14 @@
 // Reads a Claude Code session's title from its transcript, and matches it to
 // a tab title. Only title records are parsed; the rest is skipped.
 
+const fs = require('fs/promises');
+const os = require('os');
+const path = require('path');
+
+function projectsDir() {
+  return path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'projects');
+}
+
 const TITLE_MARKERS = ['"custom-title"', '"ai-title"'];
 
 const normalize = (text) => text.replace(/\s+/g, ' ').trim();
@@ -52,4 +60,37 @@ function titleFromTranscript(buffer) {
   return custom ?? ai;
 }
 
-module.exports = { labelMatchesTitle, titleFromTranscript };
+async function listTranscripts(dir) {
+  const projects = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+  const files = [];
+  for (const project of projects.filter((p) => p.isDirectory())) {
+    const projectDir = path.join(dir, project.name);
+    for (const name of (await fs.readdir(projectDir).catch(() => [])).filter((n) => n.endsWith('.jsonl'))) {
+      const file = path.join(projectDir, name);
+      const stat = await fs.stat(file).catch(() => undefined);
+      if (stat?.isFile()) files.push({ file, sessionId: name.slice(0, -'.jsonl'.length), mtime: stat.mtimeMs });
+    }
+  }
+  return files.sort((a, b) => b.mtime - a.mtime);
+}
+
+// One session id (or undefined) per title, newest transcript first. Each
+// session is used once, so tabs with the same title get different sessions.
+async function findSessionIds(labels, { dir = projectsDir(), maxFiles = 500 } = {}) {
+  const result = labels.map(() => undefined);
+  let remaining = labels.length;
+  for (const { file, sessionId } of (await listTranscripts(dir)).slice(0, maxFiles)) {
+    if (!remaining) break;
+    const buffer = await fs.readFile(file).catch(() => undefined);
+    const title = buffer && titleFromTranscript(buffer);
+    if (!title) continue;
+    const index = labels.findIndex((label, i) => result[i] === undefined && labelMatchesTitle(label, title));
+    if (index >= 0) {
+      result[index] = sessionId;
+      remaining--;
+    }
+  }
+  return result;
+}
+
+module.exports = { labelMatchesTitle, titleFromTranscript, findSessionIds };

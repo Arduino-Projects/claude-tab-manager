@@ -27,12 +27,14 @@ class GroupStore {
     this.assignments = { ...(raw?.assignments || {}) };
     // Sidebar order of tabs, by label. Tabs not listed follow in editor order.
     this.order = Array.isArray(raw?.order) ? [...raw.order] : [];
+    // Tabs closed in the editor that stay in their group: { groupId: [{ label, sessionId }] }.
+    this.closed = Object.fromEntries(Object.entries(raw?.closed || {}).map(([id, list]) => [id, [...list]]));
     this.idFactory = idFactory;
     this.prune();
   }
 
   toJSON() {
-    return { groups: this.groups, assignments: this.assignments, order: this.order };
+    return { groups: this.groups, assignments: this.assignments, order: this.order, closed: this.closed };
   }
 
   getGroup(id) {
@@ -105,30 +107,63 @@ class GroupStore {
     this.order = [...labels];
   }
 
+  closedIn(groupId) {
+    return this.closed[groupId] || [];
+  }
+
+  keepClosed(groupId, entry) {
+    if (!this.getGroup(groupId)) return;
+    this.closed[groupId] = [...this.closedIn(groupId).filter((e) => e.label !== entry.label), { ...entry }];
+  }
+
+  removeClosed(groupId, label) {
+    const left = this.closedIn(groupId).filter((e) => e.label !== label);
+    if (left.length) this.closed[groupId] = left;
+    else delete this.closed[groupId];
+  }
+
+  findClosed(label) {
+    for (const [groupId, list] of Object.entries(this.closed)) {
+      const entry = list.find((e) => e.label === label);
+      if (entry) return { groupId, entry };
+    }
+    return undefined;
+  }
+
   prune() {
     const ids = new Set(this.groups.map((g) => g.id));
     for (const [label, id] of Object.entries(this.assignments)) {
       if (!ids.has(id)) delete this.assignments[label];
     }
+    for (const id of Object.keys(this.closed)) {
+      if (!ids.has(id) || !this.closed[id].length) delete this.closed[id];
+    }
   }
 }
 
 // Returns the sections the tree shows: every group in order (also when it is
-// empty), then an "Ungrouped" section when any tab has no group.
+// empty), then an "Ungrouped" section when any tab has no group. Each section
+// lists its open tabs and closed tabs together in the saved order.
 function buildSections(store, tabs, groupIdOf) {
-  const sections = store.groups.map((group) => ({ group, tabs: [] }));
+  const sections = store.groups.map((group) => ({ group, tabs: [], closed: store.closedIn(group.id) }));
   const byId = new Map(sections.map((s) => [s.group.id, s]));
   const ungrouped = [];
   for (const tab of tabs) {
     const section = byId.get(groupIdOf(tab));
     (section ? section.tabs : ungrouped).push(tab);
   }
-  if (ungrouped.length) sections.push({ group: null, tabs: ungrouped });
-  const rank = (tab) => {
-    const index = store.order.indexOf(tab.label);
+  if (ungrouped.length) sections.push({ group: null, tabs: ungrouped, closed: [] });
+  const rank = (label) => {
+    const index = store.order.indexOf(label);
     return index < 0 ? Infinity : index;
   };
-  for (const section of sections) section.tabs.sort((a, b) => rank(a) - rank(b));
+  for (const section of sections) {
+    section.tabs.sort((a, b) => rank(a.label) - rank(b.label));
+    section.items = [
+      ...section.tabs.map((tab) => ({ kind: 'tab', tab, label: tab.label })),
+      ...section.closed.map((entry) => ({ kind: 'closed', entry, label: entry.label })),
+    ].sort((a, b) => rank(a.label) - rank(b.label));
+  }
   return sections;
 }
 

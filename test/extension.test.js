@@ -595,3 +595,149 @@ test('switching into a finished tab clears its mark even when the editor says th
   await provider.pollStatus();
   assert.equal(icon(provider, 'done').id, 'circle-outline');
 });
+
+const children = (provider, name) => provider.getChildren(sectionNamed(provider, name));
+const rows = (provider, name) =>
+  children(provider, name).map((e) => [e.kind, provider.getTreeItem(e).label, provider.getTreeItem(e).description ?? '']);
+
+test('closing a grouped tab in the editor keeps it in its group as a closed row, in place', async () => {
+  start({ state: twoGroups({ a: 'g1', b: 'g1', c: 'g1' }) });
+  const [, b] = ['a', 'b', 'c'].map((label) => fake.openTab(label));
+  const provider = activate();
+
+  await fake.vscode.window.tabGroups.close(b);
+  await tick();
+
+  assert.deepEqual(rows(provider, 'Bugs'), [['tab', 'a', ''], ['closed', 'b', 'closed'], ['tab', 'c', '']]);
+  assert.equal(provider.getTreeItem(sectionNamed(provider, 'Bugs')).description, '3');
+});
+
+test('ungrouped tabs and untitled new tabs are not kept when closed', async () => {
+  start({ state: twoGroups({ 'Claude Code': 'g1' }) });
+  const loose = fake.openTab('loose');
+  const untitled = fake.openTab('Claude Code');
+  const provider = activate();
+
+  await fake.vscode.window.tabGroups.close([loose, untitled]);
+  await tick();
+
+  assert.deepEqual(rows(provider, 'Bugs'), []);
+  assert.equal(sectionNamed(provider, 'Ungrouped'), undefined);
+});
+
+test('clicking a closed row reopens its session in the same group and place', async () => {
+  start({ state: twoGroups({ a: 'g1', b: 'g1', c: 'g1' }) });
+  const files = useSessions({ 's-b': 'b' });
+  const [, b] = ['a', 'b', 'c'].map((label) => fake.openTab(label));
+  const provider = activate();
+  hookEvents(['s-b', 'Stop', { transcript: files['s-b'] }]);
+  await provider.pollStatus();
+  await fake.vscode.window.tabGroups.close(b);
+  await tick();
+  fake.handlers['claude-vscode.editor.open'] = (sessionId) => setTimeout(() => fake.openTab(sessionId === 's-b' ? 'b' : '?'), 5);
+
+  const closedRow = children(provider, 'Bugs').find((e) => e.kind === 'closed');
+  await fake.vscode.commands.executeCommand(provider.getTreeItem(closedRow).command.command, closedRow);
+  await tick();
+
+  assert.deepEqual(rows(provider, 'Bugs').map(([kind, label]) => [kind, label]), [['tab', 'a'], ['tab', 'b'], ['tab', 'c']]);
+  assert.deepEqual(fake.globalStateData[STATE_KEY].closed, {});
+});
+
+test('a closed row with no known session finds it by title when clicked', async () => {
+  start({ state: twoGroups({ b: 'g1' }) });
+  useSessions({ 's-found': 'b' });
+  const b = fake.openTab('b');
+  const provider = activate();
+  await fake.vscode.window.tabGroups.close(b);
+  await tick();
+  let opened;
+  fake.handlers['claude-vscode.editor.open'] = (sessionId) => {
+    opened = sessionId;
+    setTimeout(() => fake.openTab('b'), 5);
+  };
+
+  await fake.vscode.commands.executeCommand('claudeTabs.reopenTab', children(provider, 'Bugs')[0]);
+
+  assert.equal(opened, 's-found');
+  assert.deepEqual(rows(provider, 'Bugs').map(([kind]) => kind), ['tab']);
+});
+
+test('the sidebar X closes a tab and removes it from its group', async () => {
+  start({ state: twoGroups({ a: 'g1', b: 'g1' }) });
+  fake.openTab('a');
+  fake.openTab('b');
+  const provider = activate();
+
+  await fake.vscode.commands.executeCommand('claudeTabs.closeTab', tabNamed(provider, 'b'));
+  await tick();
+
+  assert.deepEqual(fake.layout(), [['a']]);
+  assert.deepEqual(rows(provider, 'Bugs').map(([, label]) => label), ['a']);
+});
+
+test('the sidebar X on a closed row removes the row', async () => {
+  start({ state: twoGroups({ a: 'g1' }) });
+  const a = fake.openTab('a');
+  const provider = activate();
+  await fake.vscode.window.tabGroups.close(a);
+  await tick();
+
+  await fake.vscode.commands.executeCommand('claudeTabs.closeTab', children(provider, 'Bugs')[0]);
+
+  assert.deepEqual(rows(provider, 'Bugs'), []);
+});
+
+test('moving a tab to another split does not leave a closed row behind', async () => {
+  start({ state: twoGroups({ a: 'g1' }) });
+  fake.openTab('a');
+  fake.openTab('other', { split: 1 });
+  const provider = activate();
+
+  await fake.vscode.commands.executeCommand('claudeTabs.focusTab', tabNamed(provider, 'a'));
+  await fake.vscode.commands.executeCommand('moveActiveEditor', { to: 'position', by: 'group', value: 2 });
+  await tick();
+
+  assert.deepEqual(rows(provider, 'Bugs'), [['tab', 'a', '']]);
+});
+
+test('reopening a session some other way puts it back in its group', async () => {
+  start({ state: twoGroups({ b: 'g1' }) });
+  const b = fake.openTab('b');
+  const provider = activate();
+  await fake.vscode.window.tabGroups.close(b);
+  await tick();
+
+  fake.openTab('b');
+  await tick();
+
+  assert.deepEqual(rows(provider, 'Bugs'), [['tab', 'b', '']]);
+});
+
+test('closed rows come back after a reload', async () => {
+  start({ state: { ...twoGroups({ a: 'g1', b: 'g1' }), closed: { g1: [{ label: 'b', sessionId: 's-b' }] }, order: ['b', 'a'] } });
+  fake.openTab('a');
+  const provider = activate();
+  assert.deepEqual(rows(provider, 'Bugs'), [['closed', 'b', 'closed'], ['tab', 'a', '']]);
+});
+
+test('a tab dropped on a closed row goes just above it', async () => {
+  start({ state: twoGroups({ a: 'g1', b: 'g1', c: 'g1' }) });
+  const [, b] = ['a', 'b', 'c'].map((label) => fake.openTab(label));
+  const provider = activate();
+  await fake.vscode.window.tabGroups.close(b);
+  await tick();
+
+  await dragAndDrop([tabNamed(provider, 'c')], children(provider, 'Bugs').find((e) => e.kind === 'closed'));
+
+  assert.deepEqual(rows(provider, 'Bugs').map(([, label]) => label), ['a', 'c', 'b']);
+});
+
+test('a closed row whose tab is open again after a reload goes away', async () => {
+  start({ state: { ...twoGroups({ a: 'g1' }), closed: { g1: [{ label: 'a', sessionId: 's-a' }] } } });
+  fake.openTab('a');
+  const provider = activate();
+  await tick();
+  assert.deepEqual(rows(provider, 'Bugs'), [['tab', 'a', '']]);
+  assert.deepEqual(fake.globalStateData[STATE_KEY].closed, {});
+});

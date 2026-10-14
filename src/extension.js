@@ -3,6 +3,7 @@
 const vscode = require('vscode');
 const { COLORS, UNGROUPED, colorById, GroupStore, buildSections } = require('./store');
 const { displayStatus } = require('./status');
+const { findSessionIds } = require('./sessions');
 const { SessionTracker } = require('./tracker');
 const hookSetup = require('./hookSetup');
 
@@ -40,6 +41,9 @@ function splitsInOrder() {
 function openClaudeTabs() {
   return splitsInOrder().flatMap((group) => group.tabs.filter(isClaudeTab));
 }
+
+// Claude Code's title for a tab before its first prompt. Such a tab has no session to reopen.
+const UNTITLED = 'Claude Code';
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
@@ -119,6 +123,16 @@ class TabManager {
     this.decorationEmitter = new vscode.EventEmitter();
     this.log = vscode.window.createOutputChannel('Claude Code Tab Manager', { log: true });
     this.trackOpenTabs();
+    this.lastOrder = this.displayOrder();
+  }
+
+  // Titles in the order the sidebar shows them. A closing tab is already gone
+  // when the editor reports it, so its place comes from the last copy of this.
+  displayOrder() {
+    const store = this.load();
+    return buildSections(store, openClaudeTabs(), (tab) => this.groupIdOf(store, tab))
+      .flatMap((section) => section.items)
+      .map((item) => item.label);
   }
 
   load() {
@@ -135,6 +149,7 @@ class TabManager {
   }
 
   refresh() {
+    this.lastOrder = this.displayOrder();
     this.markActiveSeen();
     this.emitter.fire();
     this.updateStatusBar();
@@ -268,19 +283,46 @@ class TabManager {
   }
 
   // Claude Code retitles a tab after the first prompt; keep its group.
+  // A grouped tab closed in the editor stays in its group as a closed row. When
+  // a tab with that title opens again, the row goes and the tab takes its place.
   async onTabsChanged(event) {
     const renames = [];
     for (const tab of event.changed) {
       const previous = this.lastLabel.get(tab);
       if (isClaudeTab(tab) && previous !== undefined && previous !== tab.label) renames.push([previous, tab.label]);
     }
+    const store = this.load();
+    const kept = event.closed
+      .filter((tab) => isClaudeTab(tab) && tab.label !== UNTITLED)
+      .map((tab) => ({ groupId: this.groupIdOf(store, tab), entry: { label: tab.label, sessionId: this.tabSessions.get(tab) } }))
+      .filter(({ groupId }) => store.getGroup(groupId));
+    const reopened = event.opened.filter(isClaudeTab).map((tab) => tab.label);
+    const orderBefore = this.lastOrder;
     this.trackOpenTabs();
     this.pollStatus();
-    if (renames.length) {
-      await this.mutate((store) => renames.forEach(([from, to]) => store.renameLabel(from, to)));
+    if (renames.length || kept.length || reopened.some((label) => store.findClosed(label) || kept.some((k) => k.entry.label === label))) {
+      await this.mutate((s) => {
+        renames.forEach(([from, to]) => s.renameLabel(from, to));
+        kept.forEach(({ groupId, entry }) => s.keepClosed(groupId, entry));
+        if (kept.length) s.setOrder([...orderBefore, ...s.order.filter((label) => !orderBefore.includes(label))]);
+        reopened.forEach((label) => {
+          const found = s.findClosed(label);
+          if (found) s.removeClosed(found.groupId, label);
+        });
+      });
     } else {
       this.refresh();
     }
+  }
+
+  // Tabs that are open after a reload no longer need their closed rows.
+  async reconcileClosed() {
+    const open = new Set(openClaudeTabs().map((tab) => tab.label));
+    const store = this.load();
+    const stale = Object.entries(store.closed).flatMap(([groupId, list]) =>
+      list.filter((e) => open.has(e.label)).map((e) => [groupId, e.label]),
+    );
+    if (stale.length) await this.mutate((s) => stale.forEach(([groupId, label]) => s.removeClosed(groupId, label)));
   }
 
   groupIdOf(store, tab) {
@@ -333,9 +375,13 @@ class TabManager {
     };
     const sections = buildSections(store, openClaudeTabs(), (tab) => this.groupIdOf(store, tab));
     const setup = this.statusInstalled === false ? [element('status-setup', { kind: 'setup' })] : [];
-    return [...setup, ...sections.map(({ group, tabs }) => {
-      const parent = element(group ? `group:${group.id}` : 'group:ungrouped', { kind: 'group', group, tabs });
-      parent.children = tabs.map((tab) => element(this.tabKey(tab), { kind: 'tab', tab, group, parent }));
+    return [...setup, ...sections.map(({ group, tabs, closed, items }) => {
+      const parent = element(group ? `group:${group.id}` : 'group:ungrouped', { kind: 'group', group, tabs, closed, items });
+      parent.children = items.map((item) =>
+        item.kind === 'tab'
+          ? element(this.tabKey(item.tab), { kind: 'tab', tab: item.tab, group, parent })
+          : element(`closed:${group.id}:${item.label}`, { kind: 'closed', entry: item.entry, group, parent }),
+      );
       return parent;
     })];
   }
@@ -361,16 +407,17 @@ class TabManager {
   getTreeItem(element) {
     if (element.kind === 'setup') return this.setupItem();
     if (element.kind === 'group') return this.groupItem(element);
+    if (element.kind === 'closed') return this.closedItem(element);
     return this.tabItem(element);
   }
 
-  groupItem({ group, tabs }) {
+  groupItem({ group, tabs, closed }) {
     const item = new vscode.TreeItem(group ? group.name : 'Ungrouped', vscode.TreeItemCollapsibleState.Expanded);
     item.id = group ? `group:${group.id}` : 'group:ungrouped';
     if (group) item.resourceUri = groupUri(group.id);
     const needYou = tabs.filter((tab) => this.statusOf(tab) === 'attention').length;
     item.description = [
-      `${tabs.length}`,
+      `${tabs.length + closed.length}`,
       needYou && `${needYou} need${needYou === 1 ? 's' : ''} you`,
     ]
       .filter(Boolean)
@@ -390,6 +437,18 @@ class TabManager {
     item.tooltip = 'Session status is off. Click to add the Claude Code hooks it needs.';
     item.contextValue = 'setup';
     item.command = { command: 'claudeTabs.setupStatus', title: 'Set Up Session Status' };
+    return item;
+  }
+
+  closedItem(element) {
+    const { entry, group } = element;
+    const item = new vscode.TreeItem(entry.label, vscode.TreeItemCollapsibleState.None);
+    item.id = element.key;
+    item.description = 'closed';
+    item.iconPath = new vscode.ThemeIcon('circle-outline', themeColor(group.color));
+    item.tooltip = `${entry.label}\nGroup: ${group.name}\nClosed. Click to reopen it.`;
+    item.contextValue = 'closed';
+    item.command = { command: 'claudeTabs.reopenTab', title: 'Reopen Tab', arguments: [element] };
     return item;
   }
 
@@ -430,20 +489,23 @@ class TabManager {
     if (target?.kind === 'tab' && tabs.includes(target.tab)) return;
     const groupId = target?.group?.id ?? UNGROUPED;
     const sections = this.getChildren().filter((e) => e.kind === 'group');
-    const rest = sections.flatMap((section) => section.tabs).filter((tab) => !tabs.includes(tab));
+    const moving = (item) => item.kind === 'tab' && tabs.includes(item.tab);
+    const rest = sections.flatMap((section) => section.items).filter((item) => !moving(item));
     let index;
     if (target?.kind === 'tab') {
-      index = rest.indexOf(target.tab);
+      index = rest.findIndex((item) => item.kind === 'tab' && item.tab === target.tab);
+    } else if (target?.kind === 'closed') {
+      index = rest.findIndex((item) => item.kind === 'closed' && item.label === target.entry.label);
     } else {
       const section = sections.find((s) => (s.group?.id ?? UNGROUPED) === groupId);
-      const last = [...(section?.tabs ?? [])].reverse().find((tab) => !tabs.includes(tab));
+      const last = [...(section?.items ?? [])].reverse().find((item) => !moving(item));
       index = last ? rest.indexOf(last) + 1 : rest.length;
     }
-    rest.splice(index, 0, ...tabs);
+    rest.splice(index, 0, ...tabs.map((tab) => ({ kind: 'tab', tab, label: tab.label })));
     for (const tab of tabs) this.liveGroup.set(tab, groupId);
     await this.mutate((store) => {
       tabs.forEach((tab) => store.assign(tab.label, groupId));
-      store.setOrder(rest.map((tab) => tab.label));
+      store.setOrder(rest.map((item) => item.label));
     });
   }
 
@@ -501,8 +563,33 @@ class TabManager {
   }
 
   async removeFromGroup(element, selection) {
+    await this.forgetClosed(element, selection);
     const tabs = this.targetTabs(element, selection);
     if (tabs.length) await this.assignTabs(tabs, UNGROUPED);
+  }
+
+  async forgetClosed(element, selection) {
+    const rows = this.targetElements(element, selection).filter((e) => e.kind === 'closed');
+    if (rows.length) await this.mutate((store) => rows.forEach((e) => store.removeClosed(e.group.id, e.entry.label)));
+  }
+
+  async reopenTab(element) {
+    const { entry, group } = element ?? {};
+    if (!entry || !group) return;
+    const sessionId = entry.sessionId ?? (await findSessionIds([entry.label]))[0];
+    if (!sessionId) {
+      return vscode.window.showWarningMessage(`Claude Tabs could not find the Claude session for "${entry.label}".`);
+    }
+    const newTab = waitForNewClaudeTab(new Set(openClaudeTabs()), 15000);
+    await vscode.commands.executeCommand('claude-vscode.editor.open', sessionId);
+    const tab = await newTab;
+    if (!tab) return vscode.window.showWarningMessage(`Claude Tabs: "${entry.label}" did not reopen.`);
+    this.liveGroup.set(tab, group.id);
+    await this.mutate((store) => {
+      store.removeClosed(group.id, entry.label);
+      store.renameLabel(entry.label, tab.label);
+      store.assign(tab.label, group.id);
+    });
   }
 
   async focus(element) {
@@ -524,9 +611,13 @@ class TabManager {
     await vscode.commands.executeCommand('claude-vscode.renameSessionTab');
   }
 
+  // The sidebar X takes a tab out of its group, so it does not stay as a closed row.
   async closeTabs(element, selection) {
+    await this.forgetClosed(element, selection);
     const tabs = this.targetTabs(element, selection);
-    if (tabs.length) await vscode.window.tabGroups.close(tabs);
+    if (!tabs.length) return;
+    await this.assignTabs(tabs, UNGROUPED);
+    await vscode.window.tabGroups.close(tabs);
   }
 
   async renameGroup(element) {
@@ -564,7 +655,7 @@ class TabManager {
     const name = element.group ? `"${element.group.name}"` : 'Ungrouped';
     const ok = await vscode.window.showWarningMessage(
       `Close all ${element.tabs.length} tab(s) in ${name}?`,
-      { modal: true, detail: 'The sessions are kept. Reopen them from the Claude Code sessions list.' },
+      { modal: true, detail: 'They stay in the group as closed tabs. Click one to reopen it.' },
       'Close Tabs',
     );
     if (ok === 'Close Tabs') await vscode.window.tabGroups.close(element.tabs);
@@ -632,6 +723,7 @@ function activate(context) {
     'claudeTabs.removeFromGroup': (e, s) => manager.removeFromGroup(e, s),
     'claudeTabs.focusTab': (e) => manager.focus(e),
     'claudeTabs.closeTab': (e, s) => manager.closeTabs(e, s),
+    'claudeTabs.reopenTab': (e) => manager.reopenTab(e),
     'claudeTabs.renameTab': (e) => manager.renameTab(e),
     'claudeTabs.renameGroup': (e) => manager.renameGroup(e),
     'claudeTabs.changeColor': (e) => manager.changeColor(e),
@@ -663,6 +755,7 @@ function activate(context) {
   );
   manager.updateStatusBar();
   manager.revealIfActiveChanged();
+  manager.reconcileClosed();
 
   const timer = setInterval(() => manager.pollStatus(), 1000);
   timer.unref?.();

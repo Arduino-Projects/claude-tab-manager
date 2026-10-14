@@ -2,7 +2,7 @@
   "name": "claude-tab-manager",
   "displayName": "Claude Code Tab Manager",
   "description": "Group, color-code, rename, and reorder Claude Code session tabs, and see which sessions are working or need you.",
-  "version": "0.9.4",
+  "version": "0.10.0",
   "publisher": "AraadShams",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -193,6 +193,11 @@
         "title": "New Claude Tab in This Group",
         "category": "Claude Tabs",
         "icon": "$(add)"
+      },
+      {
+        "command": "claudeTabs.reopenTab",
+        "title": "Reopen Tab",
+        "category": "Claude Tabs"
       }
     ],
     "keybindings": [
@@ -275,6 +280,10 @@
         },
         {
           "command": "claudeTabs.newTabInGroup",
+          "when": "false"
+        },
+        {
+          "command": "claudeTabs.reopenTab",
           "when": "false"
         }
       ],
@@ -385,7 +394,7 @@
         },
         {
           "command": "claudeTabs.closeTab",
-          "when": "view == claudeTabs.tree && viewItem =~ /^tab/",
+          "when": "view == claudeTabs.tree && viewItem =~ /^(tab|closed)/",
           "group": "inline@2"
         },
         {
@@ -400,12 +409,12 @@
         },
         {
           "command": "claudeTabs.removeFromGroup",
-          "when": "view == claudeTabs.tree && viewItem == tab.grouped",
+          "when": "view == claudeTabs.tree && viewItem =~ /^(tab\\.grouped|closed)$/",
           "group": "1_group@2"
         },
         {
           "command": "claudeTabs.closeTab",
-          "when": "view == claudeTabs.tree && viewItem =~ /^tab/",
+          "when": "view == claudeTabs.tree && viewItem =~ /^(tab|closed)/",
           "group": "2_close@1"
         }
       ]
