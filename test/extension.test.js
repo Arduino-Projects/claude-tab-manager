@@ -673,6 +673,7 @@ test('clicking a closed row reopens its session in the same group and place', as
   await provider.pollStatus();
   await fake.vscode.window.tabGroups.close(b);
   await tick();
+  assert.deepEqual(fake.globalStateData[STATE_KEY].closed.g1, [{ label: 'b', sessionId: 's-b' }]);
   fake.handlers['claude-vscode.editor.open'] = (sessionId) => setTimeout(() => fake.openTab(sessionId === 's-b' ? 'b' : '?'), 5);
 
   const closedRow = children(provider, 'Bugs').find((e) => e.kind === 'closed');
@@ -713,6 +714,8 @@ test('the sidebar X closes a tab and removes it from its group', async () => {
 
   assert.deepEqual(fake.layout(), [['a']]);
   assert.deepEqual(rows(provider, 'Bugs').map(([, label]) => label), ['a']);
+  assert.equal(sectionNamed(provider, 'Ungrouped'), undefined);
+  assert.deepEqual(fake.globalStateData[STATE_KEY].closed, {});
 });
 
 test('the sidebar X on a closed row removes the row', async () => {

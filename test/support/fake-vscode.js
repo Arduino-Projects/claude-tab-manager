@@ -119,7 +119,8 @@ function reset() {
     const i = g.tabs.indexOf(t);
     g.tabs.splice(i, 1);
     if (g.active === t) g.active = g.tabs[Math.min(i, g.tabs.length - 1)];
-    tabEvents.fire({ opened: [], closed: [t.api], changed: [] });
+    // Like Cursor, a close is reported with a new object, not the tab's own.
+    tabEvents.fire({ opened: [], closed: [{ label: t.label, input: t.input, isActive: false, group: groupApi(g) }], changed: [] });
     if (!g.tabs.length && groups.length > 1) {
       groups.splice(groups.indexOf(g), 1);
       if (activeGroup === g) activeGroup = groups[0];

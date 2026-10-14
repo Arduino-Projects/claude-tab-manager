@@ -47,6 +47,7 @@ const UNTITLED = 'Claude Code';
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
+const isOpen = (tab) => vscode.window.tabGroups.all.some((group) => group.tabs.includes(tab));
 const isFocused = (tab) => vscode.window.tabGroups.activeTabGroup.activeTab === tab;
 
 
@@ -121,8 +122,10 @@ class TabManager {
     this.tracker = new SessionTracker(hookSetup.paths().events);
     this.tabSessions = new WeakMap();
     this.decorationEmitter = new vscode.EventEmitter();
-    // Tabs closed with the sidebar X, which are not kept as closed rows.
-    this.discarding = new WeakSet();
+    // Cursor reports a closed tab with a new object, so tabs being closed are
+    // tracked by title: the ones the sidebar X closes, and each tab's session.
+    this.discarding = new Set();
+    this.sessionByLabel = new Map();
     this.log = vscode.window.createOutputChannel('Claude Code Tab Manager', { log: true });
     this.trackOpenTabs();
     this.lastOrder = this.displayOrder();
@@ -176,7 +179,10 @@ class TabManager {
       if (await this.tracker.poll()) await this.tracker.refreshTitles();
       const tabs = openClaudeTabs();
       const ids = await this.tracker.matchWithRetry(tabs.map((tab) => tab.label));
-      tabs.forEach((tab, i) => this.tabSessions.set(tab, ids[i]));
+      tabs.forEach((tab, i) => {
+        this.tabSessions.set(tab, ids[i]);
+        if (ids[i]) this.sessionByLabel.set(tab.label, ids[i]);
+      });
       const key = tabs.map((tab) => `${this.tabKey(tab)}:${this.statusOf(tab)}`).join('|');
       if (key !== this.statusKey) {
         this.statusKey = key;
@@ -295,16 +301,24 @@ class TabManager {
     }
     const store = this.load();
     const kept = event.closed
-      .filter((tab) => isClaudeTab(tab) && tab.label !== UNTITLED && !this.discarding.has(tab))
+      .filter((tab) => isClaudeTab(tab) && tab.label !== UNTITLED && !this.discarding.has(tab.label))
       .map((tab) => {
         const groupId = this.groupIdOf(store, tab);
         return {
           groupId: store.getGroup(groupId) ? groupId : UNGROUPED,
-          entry: { label: tab.label, sessionId: this.tabSessions.get(tab) },
+          entry: { label: tab.label, sessionId: this.tabSessions.get(tab) ?? this.sessionByLabel.get(tab.label) },
         };
       });
     const reopened = event.opened.filter(isClaudeTab).map((tab) => tab.label);
     const orderBefore = this.lastOrder;
+    for (const tab of event.closed.filter(isClaudeTab)) {
+      const keptAs = kept.find((k) => k.entry.label === tab.label);
+      this.log.info(
+        `tab closed: "${tab.label}" discarding=${this.discarding.has(tab.label)} -> ${keptAs ? `kept in ${keptAs.groupId}` : 'not kept'}`,
+      );
+      this.discarding.delete(tab.label);
+    }
+    if (reopened.length) this.log.info(`tabs opened: ${reopened.map((l) => `"${l}"`).join(', ')}`);
     this.trackOpenTabs();
     this.pollStatus();
     if (renames.length || kept.length || reopened.some((label) => store.findClosed(label) || kept.some((k) => k.entry.label === label))) {
@@ -585,6 +599,7 @@ class TabManager {
   async reopenTab(element) {
     const { entry, group } = element ?? {};
     if (!entry) return;
+    this.log.info(`reopen: "${entry.label}" from ${group ? group.name : 'Ungrouped'}`);
     const groupId = group?.id ?? UNGROUPED;
     const sessionId = entry.sessionId ?? (await findSessionIds([entry.label]))[0];
     if (!sessionId) {
@@ -626,9 +641,12 @@ class TabManager {
     await this.forgetClosed(element, selection);
     const tabs = this.targetTabs(element, selection);
     if (!tabs.length) return;
-    for (const tab of tabs) this.discarding.add(tab);
+    this.log.info(`X: closing ${tabs.map((t) => `"${t.label}" (open=${isOpen(t)})`).join(', ')}`);
+    const labels = tabs.map((tab) => tab.label);
+    labels.forEach((label) => this.discarding.add(label));
     await this.assignTabs(tabs, UNGROUPED);
     await vscode.window.tabGroups.close(tabs);
+    setTimeout(() => labels.forEach((label) => this.discarding.delete(label)), 2000).unref?.();
   }
 
   async renameGroup(element) {
