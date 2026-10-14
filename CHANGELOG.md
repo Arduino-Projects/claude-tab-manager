@@ -3,6 +3,7 @@
 ## 0.10.1
 
 - The sidebar shows each session's full title instead of the 24-character title Claude Code puts on the tab, so titles use all the room the sidebar has. Closed rows keep their full title.
+- Closed rows have dimmed text and a "C" badge on the right, which stays visible however long the title is.
 
 ## 0.10.0
 

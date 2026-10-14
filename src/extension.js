@@ -51,9 +51,14 @@ const isOpen = (tab) => vscode.window.tabGroups.all.some((group) => group.tabs.i
 const isFocused = (tab) => vscode.window.tabGroups.activeTabGroup.activeTab === tab;
 
 
-// Group titles get their color from a file decoration on this made-up URI.
+// Group titles get their color, and closed rows their dimmed text and "C"
+// badge, from file decorations on these made-up URIs.
 function groupUri(groupId) {
   return vscode.Uri.parse(`claude-tabs:/group/${groupId}`);
+}
+
+function closedUri(groupKey, label) {
+  return vscode.Uri.parse(`claude-tabs:/closed/${groupKey}/${encodeURIComponent(label)}`);
 }
 
 function themeColor(colorId) {
@@ -246,8 +251,11 @@ class TabManager {
     this.context.globalState.update(SEEN_KEY, { ...kept, [id]: session.at });
   }
 
-  groupDecoration(uri) {
+  decorationFor(uri) {
     if (uri.scheme !== 'claude-tabs') return undefined;
+    if (uri.path.startsWith('/closed/')) {
+      return new vscode.FileDecoration('C', 'Closed', new vscode.ThemeColor('disabledForeground'));
+    }
     const group = this.load().getGroup(uri.path.replace(/^\/group\//, ''));
     return group ? new vscode.FileDecoration(undefined, undefined, themeColor(group.color)) : undefined;
   }
@@ -497,7 +505,7 @@ class TabManager {
     const title = entry.title ?? entry.label;
     const item = new vscode.TreeItem(title, vscode.TreeItemCollapsibleState.None);
     item.id = element.key;
-    item.description = 'closed';
+    item.resourceUri = closedUri(group ? group.id : 'ungrouped', entry.label);
     item.iconPath = new vscode.ThemeIcon('circle-outline', group ? themeColor(group.color) : undefined);
     item.tooltip = [title, group && `Group: ${group.name}`, 'Closed. Click to reopen it.'].filter(Boolean).join('\n');
     item.contextValue = 'closed';
@@ -811,7 +819,7 @@ function activate(context) {
     manager.log,
     vscode.window.registerFileDecorationProvider({
       onDidChangeFileDecorations: manager.decorationEmitter.event,
-      provideFileDecoration: (uri) => manager.groupDecoration(uri),
+      provideFileDecoration: (uri) => manager.decorationFor(uri),
     }),
     ...Object.entries(commands).map(([id, fn]) => vscode.commands.registerCommand(id, fn)),
   );

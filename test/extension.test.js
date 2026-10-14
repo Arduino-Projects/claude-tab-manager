@@ -597,8 +597,13 @@ test('switching into a finished tab clears its mark even when the editor says th
 });
 
 const children = (provider, name) => provider.getChildren(sectionNamed(provider, name));
+// Each row as [kind, label, badge]; closed rows carry a "C" badge from a file decoration.
 const rows = (provider, name) =>
-  children(provider, name).map((e) => [e.kind, provider.getTreeItem(e).label, provider.getTreeItem(e).description ?? '']);
+  children(provider, name).map((e) => {
+    const item = provider.getTreeItem(e);
+    const badge = item.resourceUri ? fake.decorations.provideFileDecoration(item.resourceUri)?.badge : undefined;
+    return [e.kind, item.label, e.kind === 'closed' ? badge ?? '' : item.description ?? ''];
+  });
 
 test('closing a grouped tab in the editor keeps it in its group as a closed row, in place', async () => {
   start({ state: twoGroups({ a: 'g1', b: 'g1', c: 'g1' }) });
@@ -608,7 +613,7 @@ test('closing a grouped tab in the editor keeps it in its group as a closed row,
   await fake.vscode.window.tabGroups.close(b);
   await tick();
 
-  assert.deepEqual(rows(provider, 'Bugs'), [['tab', 'a', ''], ['closed', 'b', 'closed'], ['tab', 'c', '']]);
+  assert.deepEqual(rows(provider, 'Bugs'), [['tab', 'a', ''], ['closed', 'b', 'C'], ['tab', 'c', '']]);
   assert.equal(provider.getTreeItem(sectionNamed(provider, 'Bugs')).description, '3');
 });
 
@@ -621,7 +626,7 @@ test('closing an ungrouped tab keeps it under Ungrouped as a closed row', async 
   await fake.vscode.window.tabGroups.close(loose);
   await tick();
 
-  assert.deepEqual(rows(provider, 'Ungrouped'), [['tab', 'keep', ''], ['closed', 'loose', 'closed']]);
+  assert.deepEqual(rows(provider, 'Ungrouped'), [['tab', 'keep', ''], ['closed', 'loose', 'C']]);
 });
 
 test('an ungrouped closed row shows even when no ungrouped tab is open, and reopens there', async () => {
@@ -631,7 +636,7 @@ test('an ungrouped closed row shows even when no ungrouped tab is open, and reop
   const provider = activate();
   await fake.vscode.window.tabGroups.close(loose);
   await tick();
-  assert.deepEqual(rows(provider, 'Ungrouped'), [['closed', 'loose', 'closed']]);
+  assert.deepEqual(rows(provider, 'Ungrouped'), [['closed', 'loose', 'C']]);
   fake.handlers['claude-vscode.editor.open'] = () => setTimeout(() => fake.openTab('loose'), 5);
 
   await fake.vscode.commands.executeCommand('claudeTabs.reopenTab', children(provider, 'Ungrouped')[0]);
@@ -760,7 +765,7 @@ test('closed rows come back after a reload', async () => {
   start({ state: { ...twoGroups({ a: 'g1', b: 'g1' }), closed: { g1: [{ label: 'b', sessionId: 's-b' }] }, order: ['b', 'a'] } });
   fake.openTab('a');
   const provider = activate();
-  assert.deepEqual(rows(provider, 'Bugs'), [['closed', 'b', 'closed'], ['tab', 'a', '']]);
+  assert.deepEqual(rows(provider, 'Bugs'), [['closed', 'b', 'C'], ['tab', 'a', '']]);
 });
 
 test('a tab dropped on a closed row goes just above it', async () => {
@@ -823,5 +828,20 @@ test('a closed row keeps the full title', async () => {
   await fake.vscode.window.tabGroups.close(tab);
   await tick();
 
-  assert.deepEqual(rows(provider, 'Bugs'), [['closed', 'Review PR #41500 and leave comments', 'closed']]);
+  assert.deepEqual(rows(provider, 'Bugs'), [['closed', 'Review PR #41500 and leave comments', 'C']]);
+});
+
+test('closed rows are dimmed, show a C badge, and have no trailing text', async () => {
+  start({ state: twoGroups({ a: 'g1' }) });
+  const a = fake.openTab('a');
+  const provider = activate();
+  await fake.vscode.window.tabGroups.close(a);
+  await tick();
+
+  const item = provider.getTreeItem(children(provider, 'Bugs')[0]);
+  const decoration = fake.decorations.provideFileDecoration(item.resourceUri);
+  assert.equal(item.description, undefined);
+  assert.equal(decoration.badge, 'C');
+  assert.equal(decoration.color.id, 'disabledForeground');
+  assert.equal(decoration.tooltip, 'Closed');
 });
